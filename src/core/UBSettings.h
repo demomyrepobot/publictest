@@ -259,9 +259,9 @@ class UBSettings : public QObject
         UBSetting* appEnableAutomaticSoftwareUpdates;
         UBSetting* appSoftwareUpdateURL;
         UBSetting* appHideCheckForSoftwareUpdate;
-        UBSetting* appHideSwapDisplayScreens;
         UBSetting* appToolBarOrientationVertical;
         UBSetting* appPreferredLanguage;
+        UBSetting* appRunInWindow;
 
         UBSetting* appIsInSoftwareUpdateProcess;
 
@@ -269,6 +269,7 @@ class UBSettings : public QObject
         UBSetting* appLastSessionPageIndex;
 
         UBSetting* appUseMultiscreen;
+        UBSetting* appScreenList;
 
         UBSetting* appStartupHintsEnabled;
 
@@ -329,6 +330,13 @@ class UBSettings : public QObject
         UBSetting* webShowPageImmediatelyOnMirroredScreen;
 
         UBSetting* webHomePage;
+        UBSetting* webSearchEngineUrl;
+        UBSetting* alternativeUserAgent;
+        UBSetting* alternativeUserAgentDomains;
+        UBSetting* webCookieAutoDelete;
+        UBSetting* webCookieKeepDomains;
+        UBSetting* webCookiePolicy;
+        UBSetting* webPrivateBrowsing;
 
         UBSetting* pageCacheSize;
 
@@ -348,8 +356,6 @@ class UBSettings : public QObject
         UBSetting* lastPicturePath;
         UBSetting* lastWidgetPath;
         UBSetting* lastVideoPath;
-
-        UBSetting* appOnlineUserName;
 
         UBSetting* boardShowToolsPalette;
 
@@ -427,9 +433,6 @@ class UBSettings : public QObject
 
         UBSetting* magnifierDrawingMode;
         UBSetting* autoSaveInterval;
-
-        UBSetting* enableToolAxes;
-        UBSetting* enableIntermediateLines;
 
     public slots:
 

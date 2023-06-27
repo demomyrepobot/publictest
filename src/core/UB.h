@@ -53,6 +53,8 @@ struct UBMimeType
         PDF,
         OpenboardTool,
         Group,
+        Html,
+        Document,
         UNKNOWN
     };
 };
@@ -142,6 +144,7 @@ struct UBGraphicsItemData
         , ItemFlippable // (bool)
         , ItemRotatable // (bool)
         , ItemCanBeSetAsBackground
+        , ItemIsHiddenOnDisplay
     };
 };
 

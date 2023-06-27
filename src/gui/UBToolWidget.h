@@ -36,7 +36,9 @@
 class UBGraphicsWidgetItem;
 class QWidget;
 class UBGraphicsScene;
-class QWebView;
+class UBWebEngineView;
+class UBWidgetUniboardAPI;
+class UBW3CWidgetAPI;
 
 class UBToolWidget : public QWidget
 {
@@ -56,20 +58,25 @@ class UBToolWidget : public QWidget
 
     protected:
         void initialize();
-        virtual void paintEvent(QPaintEvent *event);
+        virtual void paintEvent(QPaintEvent *event) override;
 
-        virtual void mousePressEvent(QMouseEvent *event);
-        virtual void mouseMoveEvent(QMouseEvent *event);
-        virtual void mouseReleaseEvent(QMouseEvent *event);
+        virtual void mousePressEvent(QMouseEvent *event) override;
+        virtual void mouseMoveEvent(QMouseEvent *event) override;
+        virtual void mouseReleaseEvent(QMouseEvent *event) override;
 
-        virtual bool eventFilter(QObject *obj, QEvent *event);
+        virtual void enterEvent(QEvent *event) override;
+        virtual void leaveEvent(QEvent *event) override;
+
+        virtual bool eventFilter(QObject *obj, QEvent *event) override;
 
     private slots:
-        void javaScriptWindowObjectCleared();
+        void registerAPI();
 
     protected:
-        QWebView *mWebView;
+        UBWebEngineView *mWebView;
         UBGraphicsWidgetItem *mToolWidget;
+        UBWidgetUniboardAPI *mUniboardAPI = nullptr;
+        UBW3CWidgetAPI* mWidgetAPI = nullptr;
 
         static QPixmap *sClosePixmap;
         static QPixmap *sUnpinPixmap;

@@ -38,7 +38,6 @@
 #include "tools/UBGraphicsCurtainItem.h"
 
 class UBGraphicsPixmapItem;
-class UBGraphicsProxyWidget;
 class UBGraphicsSvgItem;
 class UBGraphicsPolygonItem;
 class UBGraphicsMediaItem;
@@ -128,16 +127,17 @@ class UBGraphicsScene: public UBCoreGraphicsScene, public UBItem
         void setURStackEnable(bool enable){mUndoRedoStackEnabled = enable;}
         bool isURStackIsEnabled(){return mUndoRedoStackEnabled;}
 
-        UBGraphicsScene(UBDocumentProxy *parent, bool enableUndoRedoStack = true);
+        UBGraphicsScene(std::shared_ptr<UBDocumentProxy>document, bool enableUndoRedoStack = true);
         virtual ~UBGraphicsScene();
 
         virtual UBItem* deepCopy() const;
 
         virtual void copyItemParameters(UBItem *copy) const {Q_UNUSED(copy);}
 
-        UBGraphicsScene* sceneDeepCopy() const;
+        std::shared_ptr<UBGraphicsScene> sceneDeepCopy() const;
 
         void clearContent(clearCase pCase = clearItemsAndAnnotations);
+        void saveWidgetSnapshots();
 
         bool inputDevicePress(const QPointF& scenePos, const qreal& pressure = 1.0);
         bool inputDeviceMove(const QPointF& scenePos, const qreal& pressure = 1.0);
@@ -168,8 +168,6 @@ class UBGraphicsScene: public UBCoreGraphicsScene, public UBItem
         UBGraphicsTextItem*  addTextWithFont(const QString& pString, const QPointF& pTopLeft = QPointF(0, 0)
                 , int pointSize = -1, const QString& fontFamily = "", bool bold = false, bool italic = false);
         UBGraphicsTextItem* addTextHtml(const QString &pString = QString(), const QPointF& pTopLeft = QPointF(0, 0));
-
-        UBGraphicsW3CWidgetItem* addOEmbed(const QUrl& pContentUrl, const QPointF& pPos = QPointF(0, 0));
 
         UBGraphicsGroupContainerItem *createGroup(QList<QGraphicsItem*> items);
         void addGroup(UBGraphicsGroupContainerItem *groupItem);
@@ -203,9 +201,9 @@ class UBGraphicsScene: public UBCoreGraphicsScene, public UBItem
 
         bool isEmpty() const;
 
-        void setDocument(UBDocumentProxy* pDocument);
+        void setDocument(std::shared_ptr<UBDocumentProxy> pDocument);
 
-        UBDocumentProxy* document() const
+        std::shared_ptr<UBDocumentProxy> document() const
         {
             return mDocument;
         }
@@ -249,11 +247,6 @@ class UBGraphicsScene: public UBCoreGraphicsScene, public UBItem
 
         void addMask(const QPointF &center = QPointF());
         void addCache();
-
-        QList<QGraphicsItem*> getFastAccessItems()
-        {
-            return mFastAccessItems;
-        }
 
         class SceneViewState
         {
@@ -309,6 +302,7 @@ class UBGraphicsScene: public UBCoreGraphicsScene, public UBItem
         QSize nominalSize();
 
         QSize sceneSize();
+        QSizeF sceneSizeF() const;
 
         void setNominalSize(const QSize& pSize);
 
@@ -376,6 +370,13 @@ public slots:
             bool pUseAnimation = false,
             bool useProxyForDocumentPath = false);
 
+        UBGraphicsPixmapItem* addImage(QByteArray pData,
+            QGraphicsItem* replaceFor,
+            const QPointF& pPos = QPointF(0,0),
+            qreal scaleFactor = 1.0,
+            bool pUseAnimation = false,
+            bool useProxyForDocumentPath = false);
+
         void textUndoCommandAdded(UBGraphicsTextItem *textItem);
 
         void setToolCursor(int tool);
@@ -390,6 +391,8 @@ public slots:
         void resizedMagnifier(qreal newPercent);
 
         void stylusToolChanged(int tool, int previousTool);
+
+        void controlViewportChanged();
 
     protected:
 
@@ -428,6 +431,7 @@ public slots:
 
     private:
         void setDocumentUpdated();
+        void updateBackground();
         void createEraiser();
         void createPointer();
         void createMarkerCircle();
@@ -446,7 +450,7 @@ public slots:
         QSet<QGraphicsItem*> mAddedItems;
         QSet<QGraphicsItem*> mRemovedItems;
 
-        UBDocumentProxy* mDocument;
+        std::shared_ptr<UBDocumentProxy> mDocument;
 
         bool mDarkBackground;
         UBPageBackground mPageBackground;
@@ -479,9 +483,6 @@ public slots:
         UBGraphicsStroke* mCurrentStroke;
 
         int mItemCount;
-
-        QList<QGraphicsItem*> mFastAccessItems; // a local copy as QGraphicsScene::items() is very slow in Qt 4.6
-
 
         bool mHasCache;
         //        tmp stub for divide addings scene objects from undo mechanism implementation

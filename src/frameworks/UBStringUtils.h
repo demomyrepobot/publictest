@@ -47,11 +47,11 @@ class UBStringUtils
         static QString nextDigitizedName(const QString& source);
 
         static QString toCanonicalUuid(const QUuid& uuid);
-
+        static QString toLittleEndian(const QDateTime& dateTime);
         static QString toUtcIsoDateTime(const QDateTime& dateTime);
         static QDateTime fromUtcIsoDate(const QString& dateString);
 
-
+        static QStringList trimmed(const QStringList& list);
 };
 
 #endif // UBSTRINGUTILS_H

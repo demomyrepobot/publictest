@@ -40,7 +40,7 @@
 
 #include "domain/UBGraphicsItemDelegate.h"
 #include "domain/UBGraphicsScene.h"
-#include "domain/UBGraphicsProxyWidget.h"
+#include "domain/UBResizableGraphicsItem.h"
 
 #include "gui/UBResources.h"
 
@@ -105,6 +105,7 @@ UBGraphicsDelegateFrame::UBGraphicsDelegateFrame(UBGraphicsItemDelegate* pDelega
 
     setAntiScale(1.0);
 
+    initializeTransform();
     positionHandles();
     updateResizeCursors();
 
@@ -279,7 +280,7 @@ void UBGraphicsDelegateFrame::setCursorFromAngle(QString angle)
         painter.end();
 
         pixCursor.setMask(bmpMask);
-        controlViewport->setCursor(pixCursor);
+        controlViewport->setCursor(QCursor(pixCursor));
     }
 }
 
@@ -739,8 +740,6 @@ void UBGraphicsDelegateFrame::mouseReleaseEvent(QGraphicsSceneMouseEvent *event)
 
     mCurrentTool = None;
 
-    QGraphicsRectItem::mouseReleaseEvent(event);
-
     // Show the buttons
     if(isResizing()){
         mResizing = false;
@@ -838,7 +837,6 @@ void UBGraphicsDelegateFrame::positionHandles()
     resetTransform();
     setTransform(QTransform::fromTranslate(center.x(), center.y()), true);
     setTransform(QTransform().rotate(-angle), true);
-    mAngle = angle;
     setTransform(QTransform::fromTranslate(-center.x(), -center.y()), true);
     //TODO: combine these transforms into one
 
@@ -990,7 +988,7 @@ QRectF UBGraphicsDelegateFrame::topResizeGripRect() const
 
 QRectF UBGraphicsDelegateFrame::rotateButtonBounds() const
 {
-    return QRectF(rect().right()- mFrameWidth, rect().top(), mFrameWidth, mFrameWidth);
+    return QRectF(rect().right()- mFrameWidth - 5, rect().top() + 5, mFrameWidth, mFrameWidth);
 }
 
 void UBGraphicsDelegateFrame::refreshGeometry()

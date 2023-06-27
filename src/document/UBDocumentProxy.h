@@ -34,14 +34,10 @@
 
 #include "frameworks/UBStringUtils.h"
 
-#include "core/UBSettings.h"
-
 class UBGraphicsScene;
 
-class UBDocumentProxy : public QObject
+class UBDocumentProxy
 {
-    Q_OBJECT
-
     friend class UBPersistenceManager;
 
     public:
@@ -52,8 +48,8 @@ class UBDocumentProxy : public QObject
 
         virtual ~UBDocumentProxy();
 
-        UBDocumentProxy * deepCopy() const;
-        bool theSameDocument(UBDocumentProxy *proxy);
+        std::shared_ptr<UBDocumentProxy> deepCopy() const;
+        bool theSameDocument(std::shared_ptr<UBDocumentProxy> proxy);
 
         QString persistencePath() const;
 
@@ -66,6 +62,27 @@ class UBDocumentProxy : public QObject
         QString name() const;
         QString groupName() const;
         QDateTime documentDate();
+
+        //For display purposes
+        QString documentDateLittleEndian()
+        {
+            if (mDocumentDateLittleEndian.isEmpty())
+            {
+                mDocumentDateLittleEndian = UBStringUtils::toLittleEndian(documentDate());
+            }
+
+            return mDocumentDateLittleEndian;
+        }
+
+        QString documentUpdatedAtLittleEndian()
+        {
+            if (mDocumentUpdatedAtLittleEndian.isEmpty())
+            {
+                mDocumentUpdatedAtLittleEndian = UBStringUtils::toLittleEndian(lastUpdate());
+            }
+
+            return mDocumentUpdatedAtLittleEndian;
+        }
 
         QDateTime lastUpdate();
 
@@ -84,6 +101,17 @@ class UBDocumentProxy : public QObject
         int pageDpi();
         void setPageDpi(int dpi);
 
+        bool isWidgetCompatible(const QUuid& uuid) const;
+        void setWidgetCompatible(const QUuid& uuid, bool compatible);
+        
+        bool testAndResetCleanupNeeded();
+
+        int lastVisitedSceneIndex() const;
+        void setLastVisitedSceneIndex(int lastVisitedSceneIndex);
+
+        bool isInFavoriteList() const;
+        void setIsInFavoristeList(bool isInFavoristeList);
+
     protected:
         void setPageCount(int pPageCount);
         int incPageCount();
@@ -95,6 +123,9 @@ class UBDocumentProxy : public QObject
 
         QString mPersistencePath;
 
+        QString mDocumentDateLittleEndian;
+        QString mDocumentUpdatedAtLittleEndian;
+
         QMap<QString, QVariant> mMetaDatas;
 
         bool mIsModified;
@@ -103,6 +134,13 @@ class UBDocumentProxy : public QObject
 
         int mPageDpi;
 
+        QMap<QUuid, bool> mWidgetCompatibility;
+        
+        bool mNeedsCleanup;
+
+       int mLastVisitedIndex;
+
+       bool mIsInFavoriteList;
 };
 
 inline bool operator==(const UBDocumentProxy &proxy1, const UBDocumentProxy &proxy2)

@@ -6,12 +6,15 @@ CONFIG -= flat
 CONFIG += debug_and_release \
           no_include_pwd
 
+# Don't use deprecated APIs
+DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x050900
+DEFINES += QT_DEPRECATED_WARNINGS
 
 VERSION_MAJ = 1
-VERSION_MIN = 6
-VERSION_PATCH = 4
-VERSION_TYPE = r # a = alpha, b = beta, rc = release candidate, r = release, other => error
-VERSION_BUILD = 0927
+VERSION_MIN = 7
+VERSION_PATCH = 0
+VERSION_TYPE = a # a = alpha, b = beta, rc = release candidate, r = release, other => error
+VERSION_BUILD = 230427
 
 VERSION = "$${VERSION_MAJ}.$${VERSION_MIN}.$${VERSION_PATCH}-$${VERSION_TYPE}.$${VERSION_BUILD}"
 
@@ -29,18 +32,20 @@ VERSION_RC = $$replace(VERSION_RC, "b", "176") # 0xB0
 VERSION_RC = $$replace(VERSION_RC, "rc", "192" ) # 0xC0
 VERSION_RC = $$replace(VERSION_RC, "r", "240") # 0xF0
 
-QT += webkit
 QT += svg
+greaterThan(QT_MAJOR_VERSION, 5):QT += svgwidgets
 QT += network
 QT += xml
-QT += xmlpatterns
 QT += uitools
 QT += multimedia
-QT += webkitwidgets
 QT += multimediawidgets
+QT += webenginewidgets
 QT += printsupport
 QT += core
 QT += concurrent
+greaterThan(QT_MAJOR_VERSION, 5): win32: QT += core5compat
+greaterThan(QT_MAJOR_VERSION, 5): macx: QT += core5compat
+linux: QT += dbus
 
 INCLUDEPATH += src
 
@@ -179,7 +184,7 @@ macx {
    equals(QT_MAJOR_VERSION, 5):lessThan(QT_MINOR_VERSION, 14) {
       LIBS += "-L../OpenBoard-ThirdParty/quazip/lib/macx" "-lquazip"
    } else {
-       LIBS += -L/usr/local/opt/quazip/lib -lquazip1-qt5
+       LIBS += -L/usr/local/lib -lquazip5
    }
    LIBS += -L/opt/local/lib
    INCLUDEPATH += /usr/local/opt/openssl/include
@@ -187,17 +192,18 @@ macx {
    equals(QT_MAJOR_VERSION, 5):lessThan(QT_MINOR_VERSION, 14) {
        INCLUDEPATH += ../OpenBoard-ThirdParty/quazip/quazip-0.7.1
    } else {
-       INCLUDEPATH += /usr/local/opt/quazip/include/quazip
+       INCLUDEPATH += /opt/local/include/quazip5
    }
 
    LIBS        += -L/opt/local/lib -lpoppler
    INCLUDEPATH += /opt/local/include/poppler
 
-   CONFIG(release, debug|release):CONFIG += x86_64
-   CONFIG(debug, debug|release):CONFIG += x86_64
-
    QMAKE_MAC_SDK = macosx
-   QMAKE_MACOSX_DEPLOYMENT_TARGET = 10.13
+   QMAKE_MACOSX_DEPLOYMENT_TARGET = 10.15
+
+   # For universal builds
+   # QMAKE_APPLE_DEVICE_ARCHS="x86_64 arm64"
+   QMAKE_APPLE_DEVICE_ARCHS = arm64
 
    QMAKE_CXXFLAGS += -Wno-overloaded-virtual
    #VERSION_RC_PATH = "$$BUILD_DIR/version_rc"
@@ -451,8 +457,14 @@ linux-g++* {
     LIBS += -lcrypto
     #LIBS += -lprofiler
     LIBS += -lX11
-    LIBS += -lquazip5
-    INCLUDEPATH += "/usr/include/quazip5"
+
+    greaterThan(QT_MAJOR_VERSION, 5) {
+        LIBS += -lquazip6
+        INCLUDEPATH += "/usr/include/quazip6"
+    } else {
+        LIBS += -lquazip5
+        INCLUDEPATH += "/usr/include/quazip5"
+    }
 
     LIBS += -lpoppler
     INCLUDEPATH += "/usr/include/poppler"

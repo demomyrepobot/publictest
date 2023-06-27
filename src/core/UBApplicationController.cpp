@@ -58,6 +58,7 @@
 
 #include "gui/UBScreenMirror.h"
 #include "gui/UBMainWindow.h"
+#include "gui/UBStartupHintsPalette.h"
 
 #include "domain/UBGraphicsPixmapItem.h"
 
@@ -86,33 +87,28 @@ UBApplicationController::UBApplicationController(UBBoardView *pControlView,
     , mDisplayView(pDisplayView)
     , mMirror(0)
     , mMainMode(Board)
-    , mDisplayManager(0)
     , mAutomaticCheckForUpdates(false)
     , mCheckingForUpdates(false)
     , mIsShowingDesktop(false)
 {
-    mDisplayManager = new UBDisplayManager(this);
-
     mUninoteController = new UBDesktopAnnotationController(this, rightPalette);
 
-    connect(mDisplayManager, SIGNAL(screenLayoutChanged()), this, SLOT(screenLayoutChanged()));
-    connect(mDisplayManager, SIGNAL(screenLayoutChanged()), mUninoteController, SLOT(screenLayoutChanged()));
-    connect(mDisplayManager, SIGNAL(screenLayoutChanged()), UBApplication::webController, SLOT(screenLayoutChanged()));
-    connect(mDisplayManager, SIGNAL(adjustDisplayViewsRequired()), UBApplication::boardController, SLOT(adjustDisplayViews()));
+    UBDisplayManager* displayManager = UBApplication::displayManager;
+
+    connect(displayManager, SIGNAL(screenLayoutChanged()), this, SLOT(screenLayoutChanged()));
+    connect(displayManager, SIGNAL(screenLayoutChanged()), mUninoteController, SLOT(screenLayoutChanged()));
+    connect(displayManager, SIGNAL(screenLayoutChanged()), UBApplication::webController, SLOT(screenLayoutChanged()));
+    connect(displayManager, &UBDisplayManager::availableScreenCountChanged, [this](){
+        initPreviousViews();
+        UBApplication::displayManager->setPreviousDisplaysWidgets(mPreviousViews);
+    });
     connect(mUninoteController, SIGNAL(imageCaptured(const QPixmap &, bool)), this, SLOT(addCapturedPixmap(const QPixmap &, bool)));
     connect(mUninoteController, SIGNAL(restoreUniboard()), this, SLOT(hideDesktop()));
 
-    for(int i = 0; i < mDisplayManager->numPreviousViews(); i++)
-    {
-        UBBoardView *previousView = new UBBoardView(UBApplication::boardController, UBItemLayerType::FixedBackground, UBItemLayerType::Tool, 0);
-        previousView->setInteractive(false);
-        mPreviousViews.append(previousView);
-    }
-
-    mBlackScene = new UBGraphicsScene(0); // deleted by UBApplicationController::destructor
+    mBlackScene = std::make_shared<UBGraphicsScene>(nullptr);
     mBlackScene->setBackground(true, UBPageBackground::plain);
 
-    if (mDisplayManager->numScreens() >= 2 && mDisplayManager->useMultiScreen())
+    if (displayManager->numScreens() >= 2 && displayManager->useMultiScreen())
     {
         mMirror = new UBScreenMirror();
     }
@@ -131,8 +127,6 @@ UBApplicationController::~UBApplicationController()
     {
         delete view;
     }
-
-    delete mBlackScene;
     delete mMirror;
 
     delete(mOpenSankoreImporter);
@@ -149,14 +143,22 @@ void UBApplicationController::initViewState(int horizontalPosition, int vertical
 
 void UBApplicationController::initScreenLayout(bool useMultiscreen)
 {
-    mDisplayManager->setControlWidget(mMainWindow);
-    mDisplayManager->setDisplayWidget(mDisplayView);
+    UBDisplayManager* displayManager = UBApplication::displayManager;
+    UBBoardController* boardController = UBApplication::boardController;
 
-    mDisplayManager->setPreviousDisplaysWidgets(mPreviousViews);
-    mDisplayManager->setDesktopWidget(mUninoteController->drawingView());
+    displayManager->initScreensByRole();
+    initPreviousViews();
+    displayManager->assignRoles();
+    displayManager->setControlWidget(mMainWindow);
+    displayManager->setDisplayWidget(mDisplayView);
 
-    mDisplayManager->setUseMultiScreen(useMultiscreen);
-    mDisplayManager->adjustScreens(-1);
+    displayManager->setPreviousDisplaysWidgets(mPreviousViews);
+    displayManager->setDesktopWidget(mUninoteController->drawingView());
+
+    displayManager->setUseMultiScreen(useMultiscreen);
+
+    adjustPreviousViews(boardController->activeSceneIndex(), boardController->selectedDocument());
+    displayManager->positionScreens();
 }
 
 
@@ -167,9 +169,9 @@ void UBApplicationController::screenLayoutChanged()
 
     adaptToolBar();
 
-    adjustDisplayView();
+    UBApplication::boardController->adjustDisplayViews();
 
-    if (mDisplayManager->hasDisplay())
+    if (UBApplication::displayManager->hasDisplay())
     {
         UBApplication::boardController->setBoxing(mDisplayView->geometry());
     }
@@ -178,7 +180,18 @@ void UBApplicationController::screenLayoutChanged()
        UBApplication::boardController->setBoxing(QRect());
     }
 
-    adjustPreviousViews(0, 0);
+    // update mirror if necessary
+    UBDisplayManager* displayManager = UBApplication::displayManager;
+
+    if (displayManager->numScreens() > 1 && displayManager->useMultiScreen() && !mMirror)
+    {
+        mMirror = new UBScreenMirror();
+    }
+    else if ((displayManager->numScreens() == 1 || !displayManager->useMultiScreen()) && mMirror)
+    {
+        delete mMirror;
+        mMirror = nullptr;
+    }
 }
 
 
@@ -246,7 +259,7 @@ void UBApplicationController::adjustDisplayView()
 }
 
 
-void UBApplicationController::adjustPreviousViews(int pActiveSceneIndex, UBDocumentProxy *pActiveDocument)
+void UBApplicationController::adjustPreviousViews(int pActiveSceneIndex, std::shared_ptr<UBDocumentProxy> pActiveDocument)
 {
     int viewIndex = pActiveSceneIndex;
 
@@ -256,11 +269,11 @@ void UBApplicationController::adjustPreviousViews(int pActiveSceneIndex, UBDocum
         {
             viewIndex--;
 
-            UBGraphicsScene* scene = UBPersistenceManager::persistenceManager()->loadDocumentScene(pActiveDocument, viewIndex);
+            std::shared_ptr<UBGraphicsScene> scene = UBPersistenceManager::persistenceManager()->loadDocumentScene(pActiveDocument, viewIndex);
 
             if (scene)
             {
-                previousView->setScene(scene);
+                previousView->setScene(scene.get());
 
                 qreal ratio = ((qreal)previousView->geometry().width()) / ((qreal)previousView->geometry().height());
                 QRectF sceneRect = scene->normalizedSceneRect(ratio);
@@ -275,7 +288,7 @@ void UBApplicationController::adjustPreviousViews(int pActiveSceneIndex, UBDocum
         }
         else
         {
-            previousView->setScene(mBlackScene);
+            previousView->setScene(mBlackScene.get());
         }
     }
 }
@@ -283,7 +296,7 @@ void UBApplicationController::adjustPreviousViews(int pActiveSceneIndex, UBDocum
 
 void UBApplicationController::blackout()
 {
-    mDisplayManager->blackout();
+    UBApplication::displayManager->blackout();
 }
 
 
@@ -370,7 +383,7 @@ void UBApplicationController::showBoard()
         UBApplication::boardController->show();
 
     mIsShowingDesktop = false;
-    UBPlatformUtils::setDesktopMode(false);
+    UBPlatformUtils::hideMenuBarAndDock();
     UBDrawingController::drawingController()->setInDesktopMode(false);
 
     mUninoteController->hideWindow();
@@ -412,6 +425,8 @@ void UBApplicationController::showInternet()
 
         UBApplication::webController->show();
 
+        UBApplication::displayManager->adjustScreens();
+
         emit mainModeChanged(Internet);
     }
 }
@@ -421,6 +436,7 @@ void UBApplicationController::showDocument()
 {
     mMainWindow->webToolBar->hide();
     mMainWindow->boardToolBar->hide();
+    UBPlatformUtils::hideMenuBarAndDock();
     mMainWindow->documentToolBar->show();
 
     mMainMode = Document;
@@ -453,8 +469,6 @@ void UBApplicationController::showDocument()
 
 void UBApplicationController::showDesktop(bool dontSwitchFrontProcess)
 {
-    int desktopWidgetIndex = qApp->desktop()->screenNumber(mMainWindow);
-
     if (UBApplication::boardController)
         UBApplication::boardController->hide();
 
@@ -463,9 +477,8 @@ void UBApplicationController::showDesktop(bool dontSwitchFrontProcess)
 
     if (mMirror)
     {
-        QRect rect = qApp->desktop()->screenGeometry(desktopWidgetIndex);
-        rect.moveTo(0, 0);
-        mMirror->setSourceRect(rect);
+        // grab from screen instead of widget
+        mMirror->setSourceWidget(nullptr);
     }
 
     mIsShowingDesktop = true;
@@ -527,6 +540,26 @@ void UBApplicationController::updateRequestFinished(QNetworkReply * reply)
         reply->deleteLater();
 
         downloadJsonFinished(responseString);
+    }
+}
+
+void UBApplicationController::initPreviousViews()
+{
+    int numPreviousViews = UBApplication::displayManager->numPreviousViews();
+
+    // create the missing views
+    for (int i = mPreviousViews.count(); i < numPreviousViews; i++)
+    {
+        UBBoardView *previousView = new UBBoardView(UBApplication::boardController, UBItemLayerType::FixedBackground, UBItemLayerType::Tool, 0);
+        previousView->setInteractive(false);
+        mPreviousViews.append(previousView);
+    }
+
+    // delete the superfluous views
+    while (mPreviousViews.count() > numPreviousViews)
+    {
+        UBBoardView* view = mPreviousViews.takeLast();
+        delete view;
     }
 }
 
@@ -597,7 +630,7 @@ void UBApplicationController::hideDesktop()
 
     mIsShowingDesktop = false;
 
-    mDisplayManager->adjustScreens(-1);
+    UBApplication::displayManager->adjustScreens();
 
     emit desktopMode(false);
 }
@@ -618,22 +651,22 @@ void UBApplicationController::mirroringEnabled(bool enabled)
         if (enabled)
         {
             mMirror->start();
-            mDisplayManager->setDisplayWidget(mMirror);
+            UBApplication::displayManager->setDisplayWidget(mMirror);
 
         }
         else
         {
-            mDisplayManager->setDisplayWidget(mDisplayView);
+            UBApplication::displayManager->setDisplayWidget(mDisplayView);
             mMirror->stop();
         }
 
-        mMirror->setVisible(enabled && mDisplayManager->numScreens() > 1);
+        mMirror->setVisible(enabled && UBApplication::displayManager->numScreens() > 1);
         mUninoteController->updateShowHideState(enabled);
         UBApplication::mainWindow->actionWebShowHideOnDisplay->setChecked(enabled);
     }
     else
     {
-        mDisplayManager->setDisplayWidget(mDisplayView);
+        UBApplication::displayManager->setDisplayWidget(mDisplayView);
     }
 }
 
@@ -686,11 +719,9 @@ void UBApplicationController::importFile(const QString& pFilePath)
     if (!fileToOpen.exists())
         return;
 
-    UBDocumentProxy* document = 0;
-
     bool success = false;
 
-    document = UBDocumentManager::documentManager()->importFile(fileToOpen, "");
+    std::shared_ptr<UBDocumentProxy> document = UBDocumentManager::documentManager()->importFile(fileToOpen, "");
 
     success = (document != 0);
 
@@ -700,15 +731,20 @@ void UBApplicationController::importFile(const QString& pFilePath)
         {
             if (UBApplication::boardController)
             {
-                UBApplication::boardController->setActiveDocumentScene(document, 0);
-                showBoard();
+                UBApplication::boardController->setActiveDocumentScene(document, 0, true, true);
             }
         }
         else if (mMainMode == Document)
         {
             if (UBApplication::documentController)
-                UBApplication::documentController->selectDocument(document);
+            {
+                UBApplication::documentController->selectDocument(document, true, true);
+            }
         }
+
+        // This import operation happens when double-clicking on a UBZ for example.
+        // The document is added and set as current document, so the user probably wants to see it immediately.
+        showBoard();
     }
 }
 
@@ -717,12 +753,13 @@ void UBApplicationController::useMultiScreen(bool use)
     if (use && !mMirror)
         mMirror = new UBScreenMirror();
     if (!use && mMirror) {
+        mirroringEnabled(false);
         delete mMirror;
         mMirror = NULL;
     }
 
-    mDisplayManager->setUseMultiScreen(use);
-    mDisplayManager->adjustScreens(0);
+    UBApplication::displayManager->setUseMultiScreen(use);
+    UBApplication::displayManager->adjustScreens();
     UBSettings::settings()->appUseMultiscreen->set(use);
 
 }
@@ -753,7 +790,7 @@ QStringList UBApplicationController::widgetInlineJavaScripts()
         }
     }
 
-    qSort(scripts);
+    std::sort(scripts.begin(), scripts.end());
 
     return scripts;
 }

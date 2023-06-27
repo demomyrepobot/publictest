@@ -53,7 +53,7 @@ public:
     UBBoardView(UBBoardController* pController, int pStartLayer, int pEndLayer, QWidget* pParent = 0, bool isControl = false, bool isDesktop = false);
     virtual ~UBBoardView();
 
-    UBGraphicsScene* scene();
+    std::shared_ptr<UBGraphicsScene> scene();
 
     void forcedTabletRelease();
 
@@ -73,6 +73,7 @@ signals:
     void resized(QResizeEvent* event);
     void shown();
     void mouseReleased();
+    void painted(const QRectF region);
 
 protected:
 
@@ -112,7 +113,11 @@ protected:
 
     virtual void resizeEvent(QResizeEvent * event);
 
+    virtual void paintEvent(QPaintEvent *event);
+
     virtual void drawBackground(QPainter *painter, const QRectF &rect);
+
+    virtual void scrollContentsBy(int dx, int dy);
 
 private:
 

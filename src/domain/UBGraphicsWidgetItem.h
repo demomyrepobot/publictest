@@ -67,13 +67,13 @@ class UBGraphicsWidgetItem : public QGraphicsProxyWidget, public UBItem, public 
 
         enum { Type = UBGraphicsItemType::GraphicsWidgetItemType };
 
-        virtual int type() const { return Type; }
+        virtual int type() const override { return Type; }
 
         virtual void initialize();
 
-        virtual void resize(qreal w, qreal h);
-        virtual void resize(const QSizeF & size);
-        virtual QSizeF size() const;
+        virtual void resize(qreal w, qreal h) override;
+        virtual void resize(const QSizeF & size) override;
+        virtual QSizeF size() const override;
 
         QUrl mainHtml() const;
         void loadMainHtml();
@@ -84,6 +84,7 @@ class UBGraphicsWidgetItem : public QGraphicsProxyWidget, public UBItem, public 
 
         bool canBeContent() const;
         bool canBeTool() const;
+        void setCanBeTool(bool tool);
 
         QString preference(const QString& key) const;
         void setPreference(const QString& key, QString value);
@@ -108,9 +109,9 @@ class UBGraphicsWidgetItem : public QGraphicsProxyWidget, public UBItem, public 
         virtual void setSnapshotPath(const QUrl &newFilePath);
         virtual QUrl getSnapshotPath() const;
 
-        virtual void clearSource();
+        virtual void clearSource() override;
 
-        virtual void setUuid(const QUuid &pUuid);
+        virtual void setUuid(const QUuid &pUuid) override;
 
         QSize nominalSize() const;
 
@@ -119,13 +120,18 @@ class UBGraphicsWidgetItem : public QGraphicsProxyWidget, public UBItem, public 
         bool freezable() const;
         bool resizable() const;
         bool isFrozen() const;
+        void setFreezable(bool freezable);
+        bool isWebActive() const;
 
         const QPixmap& snapshot() const;
-        void setSnapshot(const QPixmap& pix);
+        void setSnapshot(const QPixmap& pix, bool frozen);
         const QPixmap& takeSnapshot();
+        void saveSnapshot() const;
 
-        virtual UBItem* deepCopy() const = 0;
-        virtual UBGraphicsScene* scene();
+        void updatePosition();
+
+        virtual UBItem* deepCopy() const override = 0;
+        virtual std::shared_ptr<UBGraphicsScene> scene() override;
 
         static int widgetType(const QUrl& pUrl);
         static QString widgetName(const QUrl& pUrl);
@@ -135,6 +141,7 @@ class UBGraphicsWidgetItem : public QGraphicsProxyWidget, public UBItem, public 
         void activeSceneChanged();
         void freeze();
         void unFreeze();
+        void setWebActive(bool active);
         void inspectPage();
         void closeInspector();
 
@@ -165,18 +172,19 @@ class UBGraphicsWidgetItem : public QGraphicsProxyWidget, public UBItem, public 
         QMap<QString, QString> mPreferences;
 
 
-        virtual bool event(QEvent *event);
-        virtual void dropEvent(QGraphicsSceneDragDropEvent *event);
-        virtual void mousePressEvent(QGraphicsSceneMouseEvent *event);
-        virtual void mouseReleaseEvent(QGraphicsSceneMouseEvent *event);
-        virtual void hoverEnterEvent(QGraphicsSceneHoverEvent *event);
-        virtual void hoverLeaveEvent(QGraphicsSceneHoverEvent *event);
+        virtual bool event(QEvent *event) override;
+        virtual void dropEvent(QGraphicsSceneDragDropEvent *event) override;
+        virtual void mousePressEvent(QGraphicsSceneMouseEvent *event) override;
+        virtual void mouseReleaseEvent(QGraphicsSceneMouseEvent *event) override;
+        virtual void hoverEnterEvent(QGraphicsSceneHoverEvent *event) override;
+        virtual void hoverLeaveEvent(QGraphicsSceneHoverEvent *event) override;
         virtual void sendJSEnterEvent();
         virtual void sendJSLeaveEvent();
         virtual void injectInlineJavaScript();
-        virtual void wheelEvent(QGraphicsSceneWheelEvent *event);
-        virtual QVariant itemChange(GraphicsItemChange change, const QVariant &value);
-        virtual void paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget = 0);
+        virtual void wheelEvent(QGraphicsSceneWheelEvent *event) override;
+        virtual QVariant itemChange(GraphicsItemChange change, const QVariant &value) override;
+        virtual void paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget = 0) override;
+        virtual bool eventFilter(QObject *obj, QEvent *ev) override;
 
     protected slots:
         void geometryChangeRequested(const QRect& geom);
@@ -185,6 +193,7 @@ class UBGraphicsWidgetItem : public QGraphicsProxyWidget, public UBItem, public 
 
     private:
         bool mIsFrozen;
+        bool mIsWebActive;
         bool mShouldMoveWidget;
         QWebChannel* mWebChannel;
         UBWidgetUniboardAPI* mUniboardAPI;
@@ -261,11 +270,9 @@ class UBGraphicsW3CWidgetItem : public UBGraphicsWidgetItem
         virtual void sendJSEnterEvent();
         virtual void sendJSLeaveEvent();
 
-        static QString freezedWidgetFilePath();
         static QString createNPAPIWrapper(const QString& url, const QString& pMimeType = QString(), const QSize& sizeHint = QSize(300, 150), const QString& pName = QString());
         static QString createNPAPIWrapperInDir(const QString& url, const QDir& pDir, const QString& pMimeType = QString(), const QSize& sizeHint = QSize(300, 150), const QString& pName = QString());
         static QString createHtmlWrapperInDir(const QString& html, const QDir& pDir, const QSize& sizeHint,  const QString& pName);
-        static QString freezedWidgetPage();
         static bool hasNPAPIWrapper(const QString& pMimeType);
 
         Metadata mMetadatas;

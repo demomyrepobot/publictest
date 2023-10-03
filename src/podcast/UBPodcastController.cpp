@@ -475,13 +475,13 @@ void UBPodcastController::activeSceneChanged()
 {
     if (mSourceScene)
     {
-        disconnect(mSourceScene, SIGNAL(changed(const QList<QRectF>&)),
+        disconnect(mSourceScene.get(), SIGNAL(changed(const QList<QRectF>&)),
                 this, SLOT(sceneChanged(const QList<QRectF> &)));
     }
 
     mSourceScene = UBApplication::boardController->activeScene();
 
-    connect(mSourceScene, SIGNAL(changed(const QList<QRectF>&)),
+    connect(mSourceScene.get(), SIGNAL(changed(const QList<QRectF>&)),
         this, SLOT(sceneChanged(const QList<QRectF> &)));
 
     mInitialized = false;
@@ -591,7 +591,7 @@ void UBPodcastController::processScenePaintEvent()
 
     if (!repaintRect.isNull())
     {
-        UBGraphicsScene *scene = bv->scene();
+        std::shared_ptr<UBGraphicsScene> scene = bv->scene();
 
         QPainter p(&mLatestCapture);
 

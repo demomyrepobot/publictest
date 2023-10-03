@@ -62,7 +62,7 @@ UBExportPDF::~UBExportPDF()
     // NOOP
 }
 
-void UBExportPDF::persist(UBDocumentProxy* pDocumentProxy)
+void UBExportPDF::persist(std::shared_ptr<UBDocumentProxy> pDocumentProxy)
 {
     persistLocally(pDocumentProxy, tr("Export as PDF File"));
 }
@@ -78,7 +78,7 @@ bool UBExportPDF::associatedActionactionAvailableFor(const QModelIndex &selected
 }
 
 
-bool UBExportPDF::persistsDocument(UBDocumentProxy* pDocumentProxy, const QString& filename)
+bool UBExportPDF::persistsDocument(std::shared_ptr<UBDocumentProxy> pDocumentProxy, const QString& filename)
 {
     QPdfWriter pdfWriter(filename);
 
@@ -101,7 +101,7 @@ bool UBExportPDF::persistsDocument(UBDocumentProxy* pDocumentProxy, const QStrin
 
     for(int pageIndex = 0 ; pageIndex < existingPageCount; pageIndex++) {
 
-        UBGraphicsScene* scene = UBPersistenceManager::persistenceManager()->loadDocumentScene(pDocumentProxy, pageIndex);
+        std::shared_ptr<UBGraphicsScene> scene = UBPersistenceManager::persistenceManager()->loadDocumentScene(pDocumentProxy, pageIndex);
         UBApplication::showMessage(tr("Exporting page %1 of %2").arg(pageIndex + 1).arg(existingPageCount));
 
         // set background to white, no crossing for PDF output

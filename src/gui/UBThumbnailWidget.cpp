@@ -120,7 +120,6 @@ void UBThumbnailWidget::setGraphicsItems(const QList<QGraphicsItem*>& pGraphicsI
 
     foreach (const QString label, pLabels)
     {
-        QFontMetrics fm(font());
         UBThumbnailTextItem *labelItem =
             new UBThumbnailTextItem(label); // deleted while replace or by the scene destruction
 
@@ -310,8 +309,7 @@ void UBThumbnailWidget::mousePressEvent(QMouseEvent *event)
                 int index2 = mGraphicItems.indexOf(underlyingItem);
                 if (-1 == index2)
                 {
-                    const auto items = selectedItems();
-                    mSelectedThumbnailItems = QSet<QGraphicsItem *>(items.begin(), items.end());
+                    mSelectedThumbnailItems = selectedItems();
                     return;
                 }
                 mSelectionSpan = index2 - index1;
@@ -374,8 +372,8 @@ void UBThumbnailWidget::mouseMoveEvent(QMouseEvent *event)
 
         // for horizontal moving
         const auto selectedItemsX = scene()->items(incrementXSelection, Qt::IntersectsItemBoundingRect);
-        const auto incSelectedItemsX = QSet<QGraphicsItem *>(selectedItemsX.begin(), selectedItemsX.end());
-        for (QGraphicsItem *lassoSelectedItem : incSelectedItemsX)
+
+        for (QGraphicsItem *lassoSelectedItem : selectedItemsX)
         {
             if (lassoSelectedItem)
             {
@@ -401,8 +399,8 @@ void UBThumbnailWidget::mouseMoveEvent(QMouseEvent *event)
         // for vertical moving
 
         const auto selectedItemsY = scene()->items(incrementYSelection, Qt::IntersectsItemBoundingRect);
-        const auto incSelectedItemsY = QSet<QGraphicsItem *>(selectedItemsY.begin(), selectedItemsY.end());
-        for (QGraphicsItem *lassoSelectedItem : incSelectedItemsY)
+
+        for (QGraphicsItem *lassoSelectedItem : selectedItemsY)
         {
             if (lassoSelectedItem)
             {
@@ -437,14 +435,14 @@ void UBThumbnailWidget::mouseMoveEvent(QMouseEvent *event)
             item->setSelected(false);
         }
 
-        mSelectedThumbnailItems += lassoSelectedThumbnailItems;
+        mSelectedThumbnailItems += lassoSelectedThumbnailItems.values();
         mPrevLassoRect = lassoRect;
 
         if (Qt::ControlModifier & event->modifiers())
         {
             for (int i = 0; i < mSelectedThumbnailItems.count()-1; i++)
             {
-                mSelectedThumbnailItems.values().at(i)->setSelected(true);
+                mSelectedThumbnailItems.at(i)->setSelected(true);
             }
         }
     }
@@ -788,7 +786,7 @@ UBThumbnail::~UBThumbnail()
         delete mSelectionItem;
 }
 
-UBSceneThumbnailNavigPixmap::UBSceneThumbnailNavigPixmap(const QPixmap& pix, UBDocumentProxy* proxy, int pSceneIndex)
+UBSceneThumbnailNavigPixmap::UBSceneThumbnailNavigPixmap(const QPixmap& pix, std::shared_ptr<UBDocumentProxy> proxy, int pSceneIndex)
     : UBSceneThumbnailPixmap(pix, proxy, pSceneIndex)
     , mEditable(false)
 {
@@ -876,7 +874,10 @@ void UBSceneThumbnailNavigPixmap::mousePressEvent(QGraphicsSceneMouseEvent *even
 
 void UBSceneThumbnailNavigPixmap::deletePage()
 {
-    if(UBApplication::mainWindow->yesNoQuestion(QObject::tr("Remove Page"), QObject::tr("Are you sure you want to remove 1 page from the selected document '%0'?").arg(documentProxy()->metaData(UBSettings::documentName).toString()))){
+    if(UBApplication::mainWindow->yesNoQuestion(QObject::tr("Remove Page"),
+                                                QObject::tr("Are you sure you want to remove page %1 ?").arg(sceneIndex()),
+                                                QPixmap(":/images/trash-document-page.png")))
+    {
         UBApplication::boardController->deleteScene(sceneIndex());
     }
 }
@@ -950,9 +951,9 @@ void UBWidgetTextThumbnailElement::Place(int row, int col, qreal width, qreal he
     }
 }
 
-void UBDraggableThumbnail::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget)
+void UBDraggableThumbnailItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget)
 {
-    QGraphicsProxyWidget::paint(painter, option, widget);
+    UBThumbnailPixmapItem::paint(painter, option, widget);
     using namespace UBThumbnailUI;
 
     if (editable())
@@ -979,45 +980,48 @@ void UBDraggableThumbnail::paint(QPainter *painter, const QStyleOptionGraphicsIt
     }
 }
 
-void UBDraggableThumbnail::hoverEnterEvent(QGraphicsSceneHoverEvent *event)
+void UBDraggableThumbnailItem::hoverEnterEvent(QGraphicsSceneHoverEvent *event)
 {
     event->accept();
     showUI();
     update();
 }
 
-void UBDraggableThumbnail::hoverLeaveEvent(QGraphicsSceneHoverEvent *event)
+void UBDraggableThumbnailItem::hoverLeaveEvent(QGraphicsSceneHoverEvent *event)
 {
     event->accept();
     hideUI();
     update();
 }
 
-void UBDraggableThumbnail::deletePage()
+void UBDraggableThumbnailItem::deletePage()
 {
-    if(UBApplication::mainWindow->yesNoQuestion(QObject::tr("Remove Page"), QObject::tr("Are you sure you want to remove 1 page from the selected document '%0'?").arg(UBApplication::documentController->selectedDocument()->metaData(UBSettings::documentName).toString()))){
+    if(UBApplication::mainWindow->yesNoQuestion(QObject::tr("Remove Page"),
+                                                QObject::tr("Are you sure you want to remove page %1 ?").arg(sceneIndex()+1),
+                                                QPixmap(":/images/trash-document-page.png")))
+    {
         UBApplication::boardController->deleteScene(sceneIndex());
     }
 }
 
-void UBDraggableThumbnail::duplicatePage()
+void UBDraggableThumbnailItem::duplicatePage()
 {
     UBApplication::boardController->duplicateScene(sceneIndex());
 }
 
-void UBDraggableThumbnail::moveUpPage()
+void UBDraggableThumbnailItem::moveUpPage()
 {
     if (sceneIndex()!=0)
         UBApplication::boardController->moveSceneToIndex(sceneIndex(), sceneIndex() - 1);
 }
 
-void UBDraggableThumbnail::moveDownPage()
+void UBDraggableThumbnailItem::moveDownPage()
 {
     if (sceneIndex() < UBApplication::boardController->selectedDocument()->pageCount()-1)
         UBApplication::boardController->moveSceneToIndex(sceneIndex(), sceneIndex() + 1);
 }
 
-void UBDraggableThumbnail::mousePressEvent(QGraphicsSceneMouseEvent *event)
+void UBDraggableThumbnailItem::mousePressEvent(QGraphicsSceneMouseEvent *event)
 {
     QPointF p = event->pos();
 
@@ -1051,14 +1055,61 @@ void UBDraggableThumbnail::mousePressEvent(QGraphicsSceneMouseEvent *event)
     }
 }
 
-void UBDraggableThumbnail::mouseReleaseEvent(QGraphicsSceneMouseEvent *event)
+void UBDraggableThumbnailItem::mouseReleaseEvent(QGraphicsSceneMouseEvent *event)
 {
     event->accept();
 }
 
 
-void UBDraggableThumbnailView::updatePos(qreal width, qreal height)
+UBDraggableLivePixmapItem::UBDraggableLivePixmapItem(std::shared_ptr<UBGraphicsScene> pageScene, std::shared_ptr<UBDocumentProxy> documentProxy, int index)
+    : UBDraggableThumbnailItem(documentProxy, index)
+    , mScene(pageScene)
+    , mPageNumber(new UBThumbnailTextItem(index))
+    , mExposed(false)
 {
+    setFlag(QGraphicsItem::ItemIsSelectable, true);
+    setAcceptDrops(true);
+
+    mSelectionItem = new QGraphicsRectItem(sceneBoundingRect().x() - sSelectionItemMargin,
+                                           sceneBoundingRect().y() - sSelectionItemMargin,
+                                           sceneBoundingRect().width() + 2*sSelectionItemMargin,
+                                           sceneBoundingRect().height() + 2*sSelectionItemMargin);
+    mSelectionItem->setPen(QPen(UBSettings::treeViewBackgroundColor, 8));
+    mSelectionItem->setZValue(-1);
+
+    connect(&updateTimer, &QTimer::timeout, this, [this](){
+        updatePixmap();
+
+        if (--updateCount <= 0)
+        {
+            updateTimer.stop();
+        }
+    });
+}
+
+void UBDraggableLivePixmapItem::updatePos(qreal width, qreal height)
+{
+    QSizeF newSize(width, height);
+
+    if (newSize != mSize)
+    {
+        mSize = newSize;
+        QPixmap pixmap = QPixmap(mSize.toSize());
+        pixmap.fill(Qt::white);
+        setPixmap(pixmap);
+        updatePixmap();
+
+        QRectF sceneRect(QPointF(0, 0), mScene->sceneSize());
+        sceneRect.translate(-sceneRect.center());
+        QSizeF sceneSize = mSize.scaled(sceneRect.size(), Qt::KeepAspectRatioByExpanding);
+        QSizeF expand = (sceneSize - sceneRect.size()) / 2;
+        QMarginsF margins(expand.width(), expand.height(), expand.width(), expand.height());
+
+        mTransform = QTransform();
+        mTransform.scale(mSize.width() / sceneSize.width(), mSize.height() / sceneSize.height());
+        mTransform.translate(sceneSize.width() / 2, sceneSize.height() / 2);
+    }
+
     QFontMetrics fm(mPageNumber->font());
     int labelSpacing = UBSettings::thumbnailSpacing + fm.height();
 
@@ -1076,16 +1127,99 @@ void UBDraggableThumbnailView::updatePos(qreal width, qreal height)
     setTransform(transform);
     setFlag(QGraphicsItem::ItemIsSelectable, true);
 
-    QPointF position((width - w * scaledFactor) / 2,
-                sceneIndex() * (height + labelSpacing) + (height - h * scaledFactor) / 2);
+    // even spacing, all thumbnails have the same size
+    QPointF position(2*sSelectionItemMargin, 2*sSelectionItemMargin + sceneIndex() * (height + labelSpacing) + (height - h * scaledFactor) / 2);
 
     setPos(position);
 
-    position.setY(position.y() + (height + h * scaledFactor) / 2);
+    mSelectionItem->setRect(sceneBoundingRect().x() - sSelectionItemMargin,
+                            sceneBoundingRect().y() - sSelectionItemMargin,
+                            sceneBoundingRect().width() + 2*sSelectionItemMargin,
+                            sceneBoundingRect().height() + 2*sSelectionItemMargin);
+
+    position.setY(sSelectionItemMargin + position.y() + (height + h * scaledFactor) / 2);
     position.setX(position.x() + (w * scaledFactor - fm.horizontalAdvance(mPageNumber->toPlainText())) / 2);
 
     mPageNumber->setPos(position);
 }
+
+void UBDraggableLivePixmapItem::setHighlighted(bool highlighted)
+{
+    if (highlighted)
+    {
+        mSelectionItem->show();
+    }
+    else
+    {
+        mSelectionItem->hide();
+    }
+}
+
+void UBDraggableLivePixmapItem::setExposed(bool exposed)
+{
+    if (exposed != mExposed)
+    {
+        mExposed = exposed;
+
+        if (exposed)
+        {
+            updatePixmap();
+
+            // start a burst of updates to follow PDF loading or similar
+            updateCount = 10;
+            updateTimer.start(300);
+        }
+        else
+        {
+            updateTimer.stop();
+        }
+    }
+}
+
+bool UBDraggableLivePixmapItem::isExposed()
+{
+    return mExposed;
+}
+
+void UBDraggableLivePixmapItem::updatePixmap(const QRectF &region)
+{
+    if (mSize.isValid() && mExposed)
+    {
+        QPixmap pixmap = this->pixmap();
+        QRectF pixmapRect;
+
+        if (region.isNull())
+        {
+            // full update
+            pixmapRect = QRectF(QPoint(0, 0), mSize);
+        }
+        else
+        {
+            // only render affected region
+
+            /*
+             * To avoid problems with antialiaing we have to make sure that the
+             * pixmapRect has an integer size and position and covers at least
+             * the affected region. The following steps assure this.
+             */
+            pixmapRect = mTransform.mapRect(region);        // translate to pixmap coordinates
+            pixmapRect += QMarginsF(1, 1, 1, 1);            // add a margin
+            pixmapRect = pixmapRect.toRect();               // cut to integer
+            pixmapRect &= QRectF(QPointF(0, 0), mSize);     // limit to pixmap area
+        }
+
+        if (pixmapRect.isValid())
+        {
+            QPainter painter(&pixmap);
+            QRectF sceneRect = mTransform.inverted().mapRect(pixmapRect);
+            mScene->render(&painter, pixmapRect, sceneRect);
+            setPixmap(pixmap);
+        }
+    }
+}
+
+
+
 
 UBThumbnailUI::UBThumbnailUIIcon* UBThumbnailUI::addIcon(const QString& thumbnailIcon, int pos)
 {

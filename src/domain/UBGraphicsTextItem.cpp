@@ -349,6 +349,7 @@ void UBGraphicsTextItem::copyItemParameters(UBItem *copy) const
         cp->setFlag(QGraphicsItem::ItemIsSelectable, true);
         cp->setData(UBGraphicsItemData::ItemLayerType, this->data(UBGraphicsItemData::ItemLayerType));
         cp->setData(UBGraphicsItemData::ItemLocked, this->data(UBGraphicsItemData::ItemLocked));
+        cp->setData(UBGraphicsItemData::ItemIsHiddenOnDisplay, this->data(UBGraphicsItemData::ItemIsHiddenOnDisplay));
         cp->setData(UBGraphicsItemData::ItemEditable, data(UBGraphicsItemData::ItemEditable).toBool());
         cp->setTextWidth(this->textWidth());
         cp->setTextHeight(this->textHeight());
@@ -444,14 +445,14 @@ void UBGraphicsTextItem::contentsChanged()
 
     if (toPlainText().isEmpty())
     {
-        resize(QFontMetrics(font()).width(mTypeTextHereLabel),QFontMetrics(font()).height());
+        resize(QFontMetrics(font()).horizontalAdvance(mTypeTextHereLabel),QFontMetrics(font()).height());
     }
 }
 
 
-UBGraphicsScene* UBGraphicsTextItem::scene()
+std::shared_ptr<UBGraphicsScene> UBGraphicsTextItem::scene()
 {
-    return static_cast<UBGraphicsScene*>(QGraphicsItem::scene());
+    return std::shared_ptr<UBGraphicsScene>(dynamic_cast<UBGraphicsScene*>(QGraphicsItem::scene()));
 }
 
 

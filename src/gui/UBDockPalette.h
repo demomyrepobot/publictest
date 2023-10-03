@@ -38,7 +38,7 @@ class UBDocumentProxy;
 #include <QPaintEvent>
 #include <QResizeEvent>
 #include <QEvent>
-#include <QTime>
+#include <QElapsedTimer>
 #include <QPoint>
 #include <QPixmap>
 #include <QMap>
@@ -148,7 +148,7 @@ public slots:
     void onShowTabWidget(UBDockPaletteWidget* widget);
     void onHideTabWidget(UBDockPaletteWidget* widget);
     void onAllDownloadsFinished();
-    virtual void onDocumentSet(UBDocumentProxy* documentProxy);
+    virtual void onDocumentSet(std::shared_ptr<UBDocumentProxy> documentProxy);
 
 signals:
     void mouseEntered();
@@ -179,7 +179,7 @@ protected:
     /** The last width of the palette */
     int mLastWidth;
     /** The click time*/
-    QTime mClickTime;
+    QElapsedTimer mClickTime;
     /** The mouse pressed position */
     QPoint mMousePressPos;
     /** The tab orientation */
@@ -203,7 +203,7 @@ protected:
 
 private slots:
     void onToolbarPosUpdated();
-    void onResizeRequest(QResizeEvent* event);
+    void onResizeRequest();
 
 private:
     void tabClicked(int tabIndex);

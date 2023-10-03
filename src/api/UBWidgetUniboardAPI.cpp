@@ -80,8 +80,8 @@ const QString tMimeText = "text/plain";
 //Name of path inside widget to store objects
 const QString objectsPath = "objects";
 
-UBWidgetUniboardAPI::UBWidgetUniboardAPI(UBGraphicsScene *pScene, UBGraphicsWidgetItem *widget)
-    : QObject(pScene)
+UBWidgetUniboardAPI::UBWidgetUniboardAPI(std::shared_ptr<UBGraphicsScene> pScene, UBGraphicsWidgetItem *widget)
+    : QObject(pScene.get())
     , mScene(pScene)
     , mGraphicsWidget(widget)
     , mIsVisible(false)
@@ -372,7 +372,7 @@ QString UBWidgetUniboardAPI::pageThumbnail(const int pageNumber)
     if (UBApplication::boardController->activeScene() != mScene)
         return "";
 
-    UBDocumentProxy *doc = UBApplication::boardController->selectedDocument();
+    std::shared_ptr<UBDocumentProxy> doc = UBApplication::boardController->selectedDocument();
 
     if (!doc)
         return "";

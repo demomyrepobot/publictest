@@ -80,7 +80,10 @@ UBDesktopAnnotationController::UBDesktopAnnotationController(QObject *parent, UB
     mTransparentDrawingView = new UBBoardView(UBApplication::boardController, static_cast<QWidget*>(0), false, true); // deleted in UBDesktopAnnotationController::destructor
     mTransparentDrawingView->setAttribute(Qt::WA_TranslucentBackground, true);
 #ifdef Q_OS_OSX
-    mTransparentDrawingView->setAttribute(Qt::WA_MacNoShadow, true);
+    // didn't find the equivalent in Qt6
+    #if (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
+        mTransparentDrawingView->setAttribute(Qt::WA_MacNoShadow, true);
+    #endif
 #endif //Q_OS_OSX
 
     mTransparentDrawingView->setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Window | Qt::NoDropShadowWindowHint | Qt::X11BypassWindowManagerHint);
@@ -94,10 +97,10 @@ UBDesktopAnnotationController::UBDesktopAnnotationController(QObject *parent, UB
     QString backgroundStyle = "QWidget {background-color: rgba(127, 127, 127, 0)}";
     mTransparentDrawingView->setStyleSheet(backgroundStyle);
 
-    mTransparentDrawingScene = new UBGraphicsScene(0, false);
+    mTransparentDrawingScene = std::make_shared<UBGraphicsScene>(nullptr, false);
     updateColors();
 
-    mTransparentDrawingView->setScene(mTransparentDrawingScene);
+    mTransparentDrawingView->setScene(mTransparentDrawingScene.get());
     mTransparentDrawingScene->setDrawingMode(true);
 
     mDesktopPalette = new UBDesktopPalette(mTransparentDrawingView, rightPalette); 
@@ -123,8 +126,8 @@ UBDesktopAnnotationController::UBDesktopAnnotationController(QObject *parent, UB
     connect(UBApplication::mainWindow->actionSelector, SIGNAL(triggered()), this, SLOT(onToolClicked()));
     connect(mDesktopPalette, SIGNAL(maximized()), this, SLOT(onDesktopPaletteMaximized()));
     connect(mDesktopPalette, SIGNAL(minimizeStart(eMinimizedLocation)), this, SLOT(onDesktopPaletteMinimize()));
-    connect(mDesktopPalette, SIGNAL(mouseEntered()), mTransparentDrawingScene, SLOT(hideTool()));
-    connect(mRightPalette, SIGNAL(mouseEntered()), mTransparentDrawingScene, SLOT(hideTool()));
+    connect(mDesktopPalette, SIGNAL(mouseEntered()), mTransparentDrawingScene.get(), SLOT(hideTool()));
+    connect(mRightPalette, SIGNAL(mouseEntered()), mTransparentDrawingScene.get(), SLOT(hideTool()));
     connect(mRightPalette, SIGNAL(pageSelectionChangedRequired()), this, SLOT(updateBackground()));
 
     connect(mTransparentDrawingView, SIGNAL(resized(QResizeEvent*)), this, SLOT(onTransparentWidgetResized()));
@@ -133,13 +136,13 @@ UBDesktopAnnotationController::UBDesktopAnnotationController(QObject *parent, UB
     connect(UBDrawingController::drawingController(), SIGNAL(stylusToolChanged(int)), this, SLOT(stylusToolChanged(int)));
 
     // Add the desktop associated palettes
-    mDesktopPenPalette = new UBDesktopPenPalette(mTransparentDrawingView, rightPalette); 
+    mDesktopPenPalette = new UBDesktopPenPalette(mTransparentDrawingView, rightPalette, "desktop");
 
     connect(mDesktopPalette, SIGNAL(maximized()), mDesktopPenPalette, SLOT(onParentMaximized()));
     connect(mDesktopPalette, SIGNAL(minimizeStart(eMinimizedLocation)), mDesktopPenPalette, SLOT(onParentMinimized()));
 
-    mDesktopMarkerPalette = new UBDesktopMarkerPalette(mTransparentDrawingView, rightPalette);
-    mDesktopEraserPalette = new UBDesktopEraserPalette(mTransparentDrawingView, rightPalette);
+    mDesktopMarkerPalette = new UBDesktopMarkerPalette(mTransparentDrawingView, rightPalette, "desktop");
+    mDesktopEraserPalette = new UBDesktopEraserPalette(mTransparentDrawingView, rightPalette, "desktop");
 
     mDesktopPalette->setBackgroundBrush(UBSettings::settings()->opaquePaletteColor);
     mDesktopPenPalette->setBackgroundBrush(UBSettings::settings()->opaquePaletteColor);
@@ -179,7 +182,6 @@ UBDesktopAnnotationController::UBDesktopAnnotationController(QObject *parent, UB
 
 UBDesktopAnnotationController::~UBDesktopAnnotationController()
 {
-    delete mTransparentDrawingScene;
     delete mTransparentDrawingView;
 }
 
@@ -340,7 +342,7 @@ void UBDesktopAnnotationController::showWindow()
     // if finer control is necessary, use qgetenv("XDG_CURRENT_DESKTOP")
     mTransparentDrawingView->show();
 #endif
-    UBPlatformUtils::setDesktopMode(true);
+    UBPlatformUtils::hideMenuBarAndDock();
 
     mDesktopPalette->appear();
 

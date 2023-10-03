@@ -93,7 +93,7 @@ public:
             || mode == eUBDockPaletteWidget_DESKTOP;
     }
     UBFeaturesController * getFeaturesController() const { return controller; }
-    void importImage(const QImage &image, const QString &fileName = QString());
+    void importImage(const QByteArray& imageData, const QString &fileName = QString());
 
     static const int minThumbnailSize = 20;
     static const int maxThumbnailSize = 100;
@@ -258,7 +258,7 @@ class UBFeaturesNewFolderDialog : public QWidget
 
 public:
     UBFeaturesNewFolderDialog(QWidget *parent = 0);
-    void setRegexp(const QRegExp pRegExp);
+    void setRegexp(const QRegularExpression pRegExp);
     bool validString(const QString &pStr);
 
 signals:
@@ -273,7 +273,7 @@ private slots:
 
 private:
     QLineEdit *mLineEdit;
-    QRegExpValidator *mValidator;
+    QRegularExpressionValidator *mValidator;
     QStringList mFileNameList;
     QPushButton *acceptButton;
     const QString acceptText;

@@ -85,7 +85,11 @@ void UBWebEngineView::closeInspector()
 
 void UBWebEngineView::contextMenuEvent(QContextMenuEvent *event)
 {
+#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+    QMenu *menu = createStandardContextMenu();
+#else
     QMenu *menu = page()->createStandardContextMenu();
+#endif
 
     // suppress actions requiring a new window
     const QList<QWebEnginePage::WebAction> suppressed = {
@@ -116,4 +120,32 @@ void UBWebEngineView::contextMenuEvent(QContextMenuEvent *event)
     menu->setAutoFillBackground(true);
 
     menu->popup(event->globalPos());
+}
+
+QWebEngineView *UBWebEngineView::createWindow(QWebEnginePage::WebWindowType type)
+{
+    switch (type)
+    {
+    case QWebEnginePage::WebBrowserWindow:
+        break;
+
+    case QWebEnginePage::WebBrowserTab: {
+        // create a throwaway view to get the URL
+        QWebEngineView* view = new QWebEngineView();
+
+        connect(view, &QWebEngineView::urlChanged, this, [this,view](const QUrl& url){
+            // load URL in current view and delete temporary view
+            load(url);
+            view->deleteLater();
+        });
+
+        return view;
+    }
+
+    case QWebEnginePage::WebDialog:
+    case QWebEnginePage::WebBrowserBackgroundTab:
+        break;
+    }
+
+    return nullptr;
 }

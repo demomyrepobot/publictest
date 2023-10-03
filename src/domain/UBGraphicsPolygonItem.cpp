@@ -191,7 +191,7 @@ void UBGraphicsPolygonItem::paint ( QPainter * painter, const QStyleOptionGraphi
     QGraphicsPolygonItem::paint(painter, option, widget);
 }
 
-UBGraphicsScene* UBGraphicsPolygonItem::scene()
+std::shared_ptr<UBGraphicsScene> UBGraphicsPolygonItem::scene()
 {
-    return qobject_cast<UBGraphicsScene*>(QGraphicsPolygonItem::scene());
+    return std::shared_ptr<UBGraphicsScene>(dynamic_cast<UBGraphicsScene*>(QGraphicsPolygonItem::scene()));
 }

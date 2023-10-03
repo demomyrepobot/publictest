@@ -38,6 +38,8 @@
 #include "core/UBApplicationController.h"
 #include "core/UBDisplayManager.h"
 
+#include "frameworks/UBStringUtils.h"
+
 #include "board/UBBoardController.h"
 #include "document/UBDocumentController.h"
 #include "domain/UBGraphicsScene.h"
@@ -47,6 +49,12 @@
 #include "ui_preferences.h"
 
 #include "core/memcheck.h"
+
+#if (QT_VERSION >= QT_VERSION_CHECK(5, 14, 0))
+typedef Qt::SplitBehaviorFlags SplitBehavior;
+#else
+typedef QString::SplitBehavior SplitBehavior;
+#endif
 
 qreal UBPreferencesController::sSliderRatio = 10.0;
 qreal UBPreferencesController::sMinPenWidth = 0.5;
@@ -82,8 +90,9 @@ UBPreferencesController::UBPreferencesController(QWidget *parent)
     mPreferencesWindow = new UBPreferencesDialog(this,parent, Qt::Dialog);
     mPreferencesUI = new Ui::preferencesDialog();  // deleted in destructor
     mPreferencesUI->setupUi(mPreferencesWindow);
-    adjustScreens();
-    connect(UBApplication::displayManager, &UBDisplayManager::screenLayoutChanged, this, &UBPreferencesController::adjustScreens);
+    adjustScreensPreferences();
+
+    connect(UBApplication::displayManager, &UBDisplayManager::availableScreenCountChanged, this, &UBPreferencesController::adjustScreensPreferences);
     wire();
 }
 
@@ -99,9 +108,40 @@ UBPreferencesController::~UBPreferencesController()
     delete mMarkerProperties;
 }
 
-void UBPreferencesController::adjustScreens()
+void UBPreferencesController::adjustScreensPreferences()
 {
-    mPreferencesUI->multiDisplayGroupBox->setEnabled(UBApplication::displayManager->numScreens() > 1);
+    bool enabled = UBApplication::displayManager->numScreens() > 1;
+    mPreferencesUI->multiDisplayGroupBox->setEnabled(enabled);
+
+    if (enabled)
+    {
+        mPreferencesUI->screenList->setPlaceholderText(tr("Use all available displays"));
+    }
+    else
+    {
+        mPreferencesUI->screenList->setPlaceholderText("");
+    }
+
+    auto availableScreens = UBApplication::displayManager->availableScreens();
+    QStringList screenNames;
+    static QRegularExpression specialChars("[^a-zA-Z0-9]+");
+
+    for (QScreen* screen : availableScreens)
+    {
+        screenNames << screen->name().replace(specialChars, "-");
+    }
+
+    QString screenConfiguration = screenNames.join('_');
+
+    QString path = UBSettings::settings()->appScreenList->path() + "-" + screenConfiguration;
+
+    if (path != mScreenConfigurationPath)
+    {
+        mScreenConfigurationPath = path;
+        QVariant value = UBSettings::settings()->value(path);
+        UBSettings::settings()->appScreenList->set(value);
+        mPreferencesUI->screenList->loadScreenList(value.toStringList());
+    }
 }
 
 void UBPreferencesController::show()
@@ -122,10 +162,12 @@ void UBPreferencesController::wire()
     connect(mPreferencesUI->closeButton, SIGNAL(released()), this, SLOT(close()));
     connect(mPreferencesUI->defaultSettingsButton, SIGNAL(released()), this, SLOT(defaultSettings()));
 
-    connect(mPreferencesUI->screenList, &QLineEdit::textChanged, [this,settings](const QString &text){
-        if (mPreferencesUI->screenList->hasAcceptableInput())
+    connect(mPreferencesUI->screenList, &UBScreenListLineEdit::screenListChanged, this, [this,settings](const QStringList screenList){
+        settings->appScreenList->set(screenList);
+
+        if (!mScreenConfigurationPath.isEmpty())
         {
-            settings->appScreenList->set(text.split(','));
+            settings->setValue(mScreenConfigurationPath, screenList);
         }
     });
 
@@ -138,9 +180,11 @@ void UBPreferencesController::wire()
     connect(mPreferencesUI->useSystemOSKCheckBox, SIGNAL(clicked(bool)), settings->useSystemOnScreenKeyboard, SLOT(setBool(bool)));
     connect(mPreferencesUI->useSystemOSKCheckBox, SIGNAL(clicked(bool)), this, SLOT(systemOSKCheckBoxToggled(bool)));
 
-    //Zoom Behavior preferences
+    // PDF preferences
     connect(mPreferencesUI->enableQualityLossToIncreaseZoomPerfs, SIGNAL(clicked(bool)), settings->enableQualityLossToIncreaseZoomPerfs, SLOT(setBool(bool)));
     connect(mPreferencesUI->enableQualityLossToIncreaseZoomPerfs, SIGNAL(clicked(bool)), this, SLOT(setPdfZoomBehavior(bool)));
+    connect(mPreferencesUI->exportBackgroundGrid, SIGNAL(clicked(bool)), settings->exportBackgroundGrid, SLOT(setBool(bool)));
+    connect(mPreferencesUI->exportBackgroundColor, SIGNAL(clicked(bool)), settings->exportBackgroundColor, SLOT(setBool(bool)));
 
     // Documents Mode preferences
     connect(mPreferencesUI->showDateColumnOnAlphabeticalSort, SIGNAL(clicked(bool)), settings->showDateColumnOnAlphabeticalSort, SLOT(setBool(bool)));
@@ -149,7 +193,9 @@ void UBPreferencesController::wire()
     connect(mPreferencesUI->emptyTrashDaysValue, SIGNAL(valueChanged(int)), settings->emptyTrashDaysValue,  SLOT(setInt(int)));
 
 
-    connect(mPreferencesUI->keyboardPaletteKeyButtonSize, SIGNAL(currentIndexChanged(const QString &)), settings->boardKeyboardPaletteKeyBtnSize, SLOT(setString(const QString &)));
+    connect(mPreferencesUI->keyboardPaletteKeyButtonSize, qOverload<int>(&QComboBox::currentIndexChanged), settings->boardKeyboardPaletteKeyBtnSize, [=](int index) {
+        settings->boardKeyboardPaletteKeyBtnSize->setString(mPreferencesUI->keyboardPaletteKeyButtonSize->itemText(index));
+    });
     connect(mPreferencesUI->startModeComboBox, SIGNAL(currentIndexChanged(int)), settings->appStartMode, SLOT(setInt(int)));
 
     connect(mPreferencesUI->useExternalBrowserCheckBox, SIGNAL(clicked(bool)), settings->webUseExternalBrowser, SLOT(setBool(bool)));
@@ -277,6 +323,8 @@ void UBPreferencesController::init()
     this->systemOSKCheckBoxToggled(mPreferencesUI->useSystemOSKCheckBox->isChecked());
 
     mPreferencesUI->enableQualityLossToIncreaseZoomPerfs->setChecked(settings->enableQualityLossToIncreaseZoomPerfs->get().toBool());
+    mPreferencesUI->exportBackgroundGrid->setChecked(settings->exportBackgroundGrid->get().toBool());
+    mPreferencesUI->exportBackgroundColor->setChecked(settings->exportBackgroundColor->get().toBool());
 
     mPreferencesUI->showDateColumnOnAlphabeticalSort->setChecked(settings->showDateColumnOnAlphabeticalSort->get().toBool());
     mPreferencesUI->emptyTrashForOlderDocuments->setChecked(settings->emptyTrashForOlderDocuments->get().toBool());
@@ -286,7 +334,7 @@ void UBPreferencesController::init()
 
     mPreferencesUI->useExternalBrowserCheckBox->setChecked(settings->webUseExternalBrowser->get().toBool());
     mPreferencesUI->displayBrowserPageCheckBox->setChecked(settings->webShowPageImmediatelyOnMirroredScreen->get().toBool());
-    mPreferencesUI->screenList->setText(settings->appScreenList->get().toStringList().join(','));
+    mPreferencesUI->screenList->loadScreenList(settings->appScreenList->get().toStringList());
     mPreferencesUI->webHomePage->setText(settings->webHomePage->get().toString());
 
     mPreferencesUI->proxyUsername->setText(settings->proxyUsername());
@@ -353,6 +401,8 @@ void UBPreferencesController::defaultSettings()
         UBApplication::documentController->refreshDateColumns();
 
         mPreferencesUI->enableQualityLossToIncreaseZoomPerfs->setChecked(settings->enableQualityLossToIncreaseZoomPerfs->reset().toBool());
+        mPreferencesUI->exportBackgroundGrid->setChecked(settings->exportBackgroundGrid->reset().toBool());
+        mPreferencesUI->exportBackgroundColor->setChecked(settings->exportBackgroundColor->reset().toBool());
 
         mPreferencesUI->emptyTrashForOlderDocuments->setChecked(settings->emptyTrashForOlderDocuments->reset().toBool());
         mPreferencesUI->emptyTrashDaysValue->setValue(settings->emptyTrashDaysValue->reset().toInt());
@@ -698,7 +748,7 @@ UBBrushPropertiesFrame::UBBrushPropertiesFrame(QFrame* owner, const QList<QColor
     for (int i = 1 ; i < UBSettings::settings()->colorPaletteSize ; i++)
     {
         UBColorPicker *picker = new UBColorPicker(lightBackgroundFrame);
-        picker->setObjectName(QString::fromUtf8("penLightBackgroundColor") + i);
+        picker->setObjectName(QString("penLightBackgroundColor%1").arg(i));
         picker->setMinimumSize(QSize(32, 32));
         picker->setFrameShape(QFrame::StyledPanel);
         picker->setFrameShadow(QFrame::Raised);
@@ -725,7 +775,7 @@ UBBrushPropertiesFrame::UBBrushPropertiesFrame(QFrame* owner, const QList<QColor
     for (int i = 1 ; i < UBSettings::settings()->colorPaletteSize ; i++)
     {
         UBColorPicker *picker = new UBColorPicker(darkBackgroundFrame);
-        picker->setObjectName(QString::fromUtf8("penDarkBackgroundColor") + i);
+        picker->setObjectName(QString("penDarkBackgroundColor%1").arg(i));
         picker->setMinimumSize(QSize(32, 32));
         picker->setFrameShape(QFrame::StyledPanel);
         picker->setFrameShadow(QFrame::Raised);
@@ -745,118 +795,112 @@ UBBrushPropertiesFrame::UBBrushPropertiesFrame(QFrame* owner, const QList<QColor
 UBScreenListLineEdit::UBScreenListLineEdit(QWidget *parent)
     : QLineEdit(parent)
     , mValidator(nullptr)
-    , mCompleter(nullptr)
-    , mFadeOutTimer(nullptr)
 {
     connect(this, &QLineEdit::textChanged, this, &UBScreenListLineEdit::onTextChanged);
 }
 
 void UBScreenListLineEdit::setDefault()
 {
-    QList<QScreen*> screens = UBApplication::displayManager->availableScreens();
-    QStringList availableScreenNames;
+    setText("");
+}
 
-    for (QScreen* screen : screens) {
-        availableScreenNames << screen->name();
-    }
-
-    setText(availableScreenNames.join(','));
+void UBScreenListLineEdit::loadScreenList(const QStringList &screenList)
+{
+    setText(screenList.join(','));
 }
 
 void UBScreenListLineEdit::focusInEvent(QFocusEvent *focusEvent)
 {
     QLineEdit::focusInEvent(focusEvent);
 
-    if (mFadeOutTimer)
-    {
-        mFadeOutTimer->stop();
-        delete mFadeOutTimer;
-        mFadeOutTimer = nullptr;
-    }
-
     if (mScreenLabels.empty())
     {
-        QStringList screenNames = text().split(',', QString::SkipEmptyParts);
+        QStringList screenList = UBStringUtils::trimmed(text().split(','));
 
         QList<QScreen*> screens = UBApplication::displayManager->availableScreens();
-        QStringList availableScreenNames;
+        QStringList availableScreenIndexes;
+        int screenIndex = 1;
+        QFont font;
+        font.setPointSize(48);
 
-        for (QScreen* screen : screens) {
-            availableScreenNames << screen->name();
+        for (QScreen* screen : screens)
+        {
+            QString index = QString::number(screenIndex);
+            availableScreenIndexes << index;
 
             QPushButton* button = new QPushButton(this);
             button->setWindowFlag(Qt::FramelessWindowHint, true);
             button->setWindowFlag(Qt::WindowStaysOnTopHint, true);
+            button->setWindowFlag(Qt::X11BypassWindowManagerHint, true);
             button->setWindowFlag(Qt::Window, true);
-            button->setText(screen->name());
-            QFont font;
-            font.setPointSize(48);
+            button->setWindowFlag(Qt::WindowDoesNotAcceptFocus, true);
+            button->setAttribute(Qt::WA_ShowWithoutActivating, true);
+            button->setProperty("screenIndex", index);
+#ifdef QT_DEBUG
+            button->setText(index + "(" + screen->name() + ")");
+#else
+            button->setText(index);
+#endif
             button->setFont(font);
             button->move(screen->geometry().topLeft());
             button->setMinimumSize(300, 150);
-            button->setDisabled(screenNames.contains(button->text()));
+            button->setDisabled(screenList.contains(index));
+            button->setCursor(Qt::PointingHandCursor);
             button->show();
 
             connect(button, &QPushButton::pressed, this, &UBScreenListLineEdit::addScreen);
 
             mScreenLabels << button;
+            ++screenIndex;
         }
 
-        if (mValidator)
+        if (!mValidator)
         {
-            setValidator(nullptr);
-            delete mValidator;
+            mValidator = new UBStringListValidator(this);
+            setValidator(mValidator);
         }
 
-        mValidator = new UBStringListValidator(availableScreenNames);
-        setValidator(mValidator);
-        activateWindow();
+        mValidator->setValidationStringList(availableScreenIndexes);
     }
 }
 
 void UBScreenListLineEdit::focusOutEvent(QFocusEvent *focusEvent)
 {
     QLineEdit::focusOutEvent(focusEvent);
-
-    // avoid deleting screen labels when input widget shortly looses focus,
-    // e.g. by clicking one of the scren label buttons
-    mFadeOutTimer = new QTimer(this);
-    mFadeOutTimer->callOnTimeout([this](){
-        qDeleteAll(mScreenLabels);
-        mScreenLabels.clear();
-    });
-    mFadeOutTimer->start(250);
+    qDeleteAll(mScreenLabels);
+    mScreenLabels.clear();
 }
 
 void UBScreenListLineEdit::addScreen()
 {
     QPushButton* button = dynamic_cast<QPushButton*>(sender());
 
-    if (button && (text().isEmpty() || hasAcceptableInput()))
+    if (button)
     {
-        if (text().isEmpty())
+        QString list = text();
+        mValidator->fixup(list);
+        QString screenIndex = button->property("screenIndex").toString();
+
+        if (list.isEmpty())
         {
-            setText(button->text());
+            setText(screenIndex);
         }
         else
         {
-            setText(text() + "," + button->text());
+            setText(list + "," + screenIndex);
         }
 
         button->setEnabled(false);
     }
-
-    // regain focus after pressing screen label button
-    activateWindow();
 }
 
 void UBScreenListLineEdit::onTextChanged(const QString &input)
 {
-    QStringList screenNames = input.split(',', QString::SkipEmptyParts);
+    const QStringList screenList = UBStringUtils::trimmed(input.split(','));
 
-    for (QPushButton* button : mScreenLabels)
+    for (QPushButton* button : qAsConst(mScreenLabels))
     {
-        button->setDisabled(screenNames.contains(button->text()));
+        button->setDisabled(screenList.contains(button->property("screenIndex").toString()));
     }
 
     if (input.isEmpty() || input.right(1) == ',')
@@ -864,69 +908,71 @@ void UBScreenListLineEdit::onTextChanged(const QString &input)
         // create and attach a new QCompleter
         QStringList model;
 
-        for (QPushButton* button : mScreenLabels)
+        for (QPushButton* button : qAsConst(mScreenLabels))
         {
             if (button->isEnabled())
             {
-                model << input + button->text();
+                model << input + button->property("screenIndex").toString();
             }
         }
+    }
 
-        qDebug() << "Create QCompleter" << model;
-
-        if (!mCompleter)
-        {
-            mCompleter = new QCompleter(model, this);
-            setCompleter(mCompleter);
-        }
-        else
-        {
-            mCompleter->setModel(new QStringListModel(model, mCompleter));
-        }
+    // user indication of acceptable input
+    if (hasAcceptableInput())
+    {
+        setStyleSheet("");
+        emit screenListChanged(screenList);
+    }
+    else
+    {
+        setStyleSheet("QLineEdit { background-color: #FFB3C8; }");
     }
 }
 
-UBStringListValidator::UBStringListValidator(QStringList list, QObject *parent)
+UBStringListValidator::UBStringListValidator(QObject *parent)
     : QValidator(parent)
-    , mList(list)
 {
 
+}
+
+void UBStringListValidator::fixup(QString &input) const
+{
+    // remove invalid tokens from list, trim tokens
+    QStringList inputList = UBStringUtils::trimmed(input.split(','));
+    QStringList outputList;
+
+    for (const QString& token : inputList)
+    {
+        if (mList.contains(token))
+        {
+            outputList << token;
+        }
+    }
+
+    input = outputList.join(',');
 }
 
 QValidator::State UBStringListValidator::validate(QString &input, int &) const
 {
-    if (input.isEmpty())
-    {
-        return Intermediate;
-    }
-
     bool ok = true;
-    bool wasOk = false;
-    QStringList inputList = input.split(',', QString::SkipEmptyParts);
+    QStringList inputList = UBStringUtils::trimmed(input.split(','));
+    // number of commas must match number of list items - 1
+    int commas = input.count(',');
+
+    if (commas && commas + 1 != inputList.size())
+    {
+        ok = false;
+    }
 
     for (const QString& token : inputList)
     {
-        wasOk = ok;
         ok &= mList.contains(token) && inputList.count(token) == 1;
     }
 
-    if (ok)
-    {
-        return Acceptable;
-    }
-    else if (wasOk && !inputList.empty())
-    {
-        // check if last token is at least a prefix of any valid input
-        QString lastToken = inputList.last();
+    return ok ? Acceptable : Intermediate;
+}
 
-        for (const QString& item : mList)
-        {
-            if (!inputList.contains(item) && item.startsWith(lastToken))
-            {
-                return Intermediate;
-            }
-        }
-    }
-
-    return Invalid;
+void UBStringListValidator::setValidationStringList(const QStringList &list)
+{
+    mList = list;
 }

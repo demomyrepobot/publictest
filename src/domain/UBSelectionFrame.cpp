@@ -431,9 +431,9 @@ void UBSelectionFrame::clearButtons()
     mButtons.clear();
 }
 
-inline UBGraphicsScene *UBSelectionFrame::ubscene()
+inline std::shared_ptr<UBGraphicsScene> UBSelectionFrame::ubscene()
 {
-    return qobject_cast<UBGraphicsScene*>(scene());
+    return std::shared_ptr<UBGraphicsScene>(dynamic_cast<UBGraphicsScene*>(scene()));
 }
 
 void UBSelectionFrame::setCursorFromAngle(QString angle)
@@ -465,7 +465,7 @@ void UBSelectionFrame::setCursorFromAngle(QString angle)
     painter.end();
 
     pixCursor.setMask(bmpMask);
-    controlViewport->setCursor(pixCursor);
+    controlViewport->setCursor(QCursor(pixCursor));
 }
 
 QList<QGraphicsItem*> UBSelectionFrame::sortedByZ(const QList<QGraphicsItem *> &pItems)

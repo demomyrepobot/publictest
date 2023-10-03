@@ -42,6 +42,7 @@
 
 #include "UBWebController.h"
 #include "UBEmbedController.h"
+#include "UBEmbedParser.h"
 
 #include "web/simplebrowser/browserwindow.h"
 #include "web/simplebrowser/webview.h"
@@ -53,6 +54,7 @@
 #include "gui/UBMainWindow.h"
 #include "gui/UBWebToolsPalette.h"
 #include "gui/UBKeyboardPalette.h"
+#include "gui/UBStartupHintsPalette.h"
 
 #include "core/UBSettings.h"
 #include "core/UBSetting.h"
@@ -81,6 +83,7 @@ UBWebController::UBWebController(UBMainWindow* mainWindow)
     , mDownloadViewIsVisible(false)
 {
     connect(mMainWindow->actionOpenTutorial, SIGNAL(triggered()), this, SLOT(onOpenTutorial()));
+    connect(mMainWindow->actionHintsAndTips, SIGNAL(triggered()), this, SLOT(onHintsAndTips()));
 
     bool privateBrowsing = UBSettings::settings()->webPrivateBrowsing->get().toBool();
     qDebug() << "Private browsing" << privateBrowsing;
@@ -98,7 +101,7 @@ UBWebController::UBWebController(UBMainWindow* mainWindow)
 
     // compute a system specific user agent string
     QString originalUserAgent = mWebProfile->httpUserAgent();
-    QRegularExpression exp("\\(([^;]*);([^)]*)\\)");
+    static const QRegularExpression exp("\\(([^;]*);([^)]*)\\)");
 
     QString p1;
     QString p2;
@@ -355,6 +358,16 @@ UBEmbedParser *UBWebController::embedParser(const QWebEngineView* view) const
     return view->findChild<UBEmbedParser*>("UBEmbedParser");
 }
 
+void UBWebController::updateEmbeddableContent(const QWebEngineView *view) const
+{
+    QList<UBEmbedContent> list = getEmbeddedContent(view);
+
+    if (mEmbedController)
+    {
+        mEmbedController->updateListOfEmbeddableContent(list);
+    }
+}
+
 void UBWebController::show()
 {
     webBrowserInstance();
@@ -370,7 +383,7 @@ QWebEngineProfile *UBWebController::webProfile() const
     return mWebProfile;
 }
 
-QList<UBEmbedContent> UBWebController::getEmbeddedContent(const QWebEngineView *view)
+QList<UBEmbedContent> UBWebController::getEmbeddedContent(const QWebEngineView *view) const
 {
     UBEmbedParser* parser = embedParser(view);
 
@@ -450,8 +463,16 @@ void UBWebController::activePageChanged()
     {
         WebView* view = mCurrentWebBrowser->currentTab();
 
+        updateEmbeddableContent(view);
+
         if (mEmbedController)
-            mEmbedController->updateEmbeddableContentFromView(view);
+        {
+            mEmbedController->pageUrlChanged(view->url());
+            mEmbedController->pageTitleChanged(view->title());
+
+            connect(view, &QWebEngineView::urlChanged, mEmbedController, &UBEmbedController::pageUrlChanged);
+            connect(view, &QWebEngineView::titleChanged, mEmbedController, &UBEmbedController::pageTitleChanged);
+        }
 
         emit activeWebPageChanged(mCurrentWebBrowser->currentTab());
     }
@@ -585,10 +606,11 @@ void UBWebController::showTabAtTop(bool attop)
 QUrl UBWebController::guessUrlFromString(const QString &string)
 {
     QString urlStr = string.trimmed();
-    QRegExp test(QLatin1String("^[a-zA-Z]+\\:.*"));
+    static const QRegularExpression test(QRegularExpression::anchoredPattern("^[a-zA-Z]+\\:.*"));
 
     // Check if it looks like a qualified URL. Try parsing it and see.
-    bool hasSchema = test.exactMatch(urlStr);
+    QRegularExpressionMatch match = test.match(urlStr);
+    bool hasSchema = match.hasMatch();
     if (hasSchema)
     {
         int dotCount = urlStr.count(".");
@@ -648,7 +670,21 @@ void UBWebController::tabCreated(WebView *webView)
     if (!embedParser(webView))
     {
         UBEmbedParser* parser = new UBEmbedParser(webView);
-        connect(parser, &UBEmbedParser::parseResult, this, &UBWebController::onEmbedParsed);
+        connect(webView, &QWebEngineView::loadProgress, this, [parser,webView](int progress){
+            // Note: The loadFinished signal is not always emitted, but progress = 100 is.
+            if (progress == 100)
+            {
+                qDebug() << "loadFinished";
+
+                webView->page()->toHtml([parser](const QString &html) {
+                    parser->parse(html);
+                });
+            }
+        });
+
+        connect(parser, &UBEmbedParser::parseResult, this, [this,webView](bool hasEmbeddedContent){
+            onEmbedParsed(webView, hasEmbeddedContent);
+        });
     }
 }
 
@@ -790,16 +826,18 @@ void UBWebController::onEmbedParsed(QWebEngineView *view, bool hasEmbeddedConten
         // enable/disable embed button
         UBApplication::mainWindow->actionWebOEmbed->setEnabled(hasEmbeddedContent);
 
-        if (mEmbedController)
-        {
-            mEmbedController->updateEmbeddableContentFromView(view);
-        }
+        updateEmbeddableContent(view);
     }
 }
 
 void UBWebController::onOpenTutorial()
 {
     loadUrl(QUrl(UBSettings::settings()->tutorialUrl->get().toString()));
+}
+
+void UBWebController::onHintsAndTips()
+{
+    UBApplication::boardController->paletteManager()->tipsPalette()->show();
 }
 
 void UBWebController::captureStripe(QPointF pos, QSize size, QPixmap* pix, QPointF scrollPosition)

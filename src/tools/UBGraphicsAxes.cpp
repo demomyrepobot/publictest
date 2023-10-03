@@ -224,9 +224,9 @@ void UBGraphicsAxes::paintGraduations(QPainter *painter)
         {
             QString text = QString("%1").arg(centimeters);
 
-            if (graduationX + fontMetrics.width(text) / 2 < xAxis().x2())
+            if (graduationX + fontMetrics.horizontalAdvance(text) / 2 < xAxis().x2())
             {
-                qreal textWidth = fontMetrics.width(text);
+                qreal textWidth = fontMetrics.horizontalAdvance(text);
                 qreal textHeight = fontMetrics.tightBoundingRect(text).height();
                 QRectF textRect(graduationX - textWidth / 2, textHeight - 5, textWidth, textHeight);
 
@@ -255,7 +255,7 @@ void UBGraphicsAxes::paintGraduations(QPainter *painter)
         {
             QString text = QString("%1").arg(centimeters);
 
-            qreal textWidth = fontMetrics.width(text);
+            qreal textWidth = fontMetrics.horizontalAdvance(text);
             qreal textHeight = fontMetrics.tightBoundingRect(text).height();
             QRectF textRect(- textWidth - 10, graduationY - textHeight / 2, textWidth, textHeight);
 
@@ -560,9 +560,9 @@ QLineF UBGraphicsAxes::yAxis() const
     return QLineF(0, mBounds.bottom(), 0, mBounds.top());
 }
 
-UBGraphicsScene* UBGraphicsAxes::scene() const
+std::shared_ptr<UBGraphicsScene> UBGraphicsAxes::scene() const
 {
-    return static_cast<UBGraphicsScene*>(QGraphicsPolygonItem::scene());
+    return std::shared_ptr<UBGraphicsScene>(dynamic_cast<UBGraphicsScene*>(QGraphicsPolygonItem::scene()));
 }
 
 QColor UBGraphicsAxes::drawColor() const

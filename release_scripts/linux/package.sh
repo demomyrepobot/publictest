@@ -162,6 +162,11 @@ copyQtPlugin(){
     fi
 }
 
+removeQtDebugFiles()
+{
+	notifyProgress "removing Qt debug files"
+	find $PACKAGE_QT_DIRECTORY -name "*.debug" -print0 | xargs -0 rm
+}
 
 # ----------------------------------------------------------------------------
 # Copying the application, libs etc. to the temporary working directory
@@ -201,6 +206,10 @@ cp -R "$IMPORTER_DIR/$IMPORTER_NAME" "$PACKAGE_DIRECTORY/importer"
 notifyProgress "Stripping importer and main executable"
 strip $PACKAGE_DIRECTORY/$APPLICATION_NAME
 strip $PACKAGE_DIRECTORY/importer/$IMPORTER_NAME
+
+# copying startup hints
+notifyProgress "copying startupHints"
+cp -R resources/startupHints $PACKAGE_DIRECTORY/
 
 if $BUNDLE_QT; then
     notifyProgress "Copying and stripping Qt plugins"
@@ -250,6 +259,8 @@ if $BUNDLE_QT; then
     copyQtLibrary libicuuc
     copyQtLibrary libicui18n
     copyQtLibrary libicudata
+    
+    removeQtDebugFiles
 fi
 
 notifyProgress "Copying Qt translations"

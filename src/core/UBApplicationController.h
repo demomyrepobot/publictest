@@ -67,7 +67,7 @@ class UBApplicationController : public QObject
 
         void adaptToolBar();
         void adjustDisplayView();
-        void adjustPreviousViews(int pActiveSceneIndex, UBDocumentProxy *pActiveDocument);
+        void adjustPreviousViews(int pActiveSceneIndex, std::shared_ptr<UBDocumentProxy> pActiveDocument);
 
         void blackout();
 
@@ -150,6 +150,7 @@ class UBApplicationController : public QObject
 
 
     protected:
+        void initPreviousViews();
 
         UBDesktopAnnotationController *mUninoteController;
 
@@ -161,7 +162,7 @@ class UBApplicationController : public QObject
         UBBoardView *mDisplayView;
         QList<UBBoardView*> mPreviousViews;
 
-        UBGraphicsScene *mBlackScene;
+        std::shared_ptr<UBGraphicsScene> mBlackScene;
 
         UBScreenMirror* mMirror;
 
